@@ -1,0 +1,16 @@
+# NEVER commit hidden labels, the private key or secret chunks
+data/private/
+*.pem
+!encryption/public_key.pem
+
+# Plain (unencrypted) predictions must never be pushed
+predictions.csv
+submissions/**/predictions.csv
+starter/out/
+
+__pycache__/
+*.pyc
+.venv/
+venv/
+.DS_Store
+*.log

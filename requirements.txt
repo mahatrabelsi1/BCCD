@@ -1,0 +1,6 @@
+# Scoring / encryption (all participants)
+pandas>=2.0
+numpy>=1.24
+cryptography>=41
+pillow>=10
+# Starter baseline only: install torch + torchvision matching your CUDA from https://pytorch.org

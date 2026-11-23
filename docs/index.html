@@ -1,0 +1,467 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>BCCD Detection Challenge</title>
+<meta name="description" content="A GitHub-native mini competition: detect red blood cells, white blood cells and platelets in microscope images. Scored by mAP@0.5 on a hidden test set." />
+<style>
+  :root{
+    --bg:#f6f7fb; --surface:#ffffff; --surface2:#f1f3f8; --text:#14171f; --muted:#5b6475;
+    --line:#e3e6ee; --accent:#c8102e; --accent-soft:#fde8eb; --ok:#14804a; --err:#c62828;
+    --gold:#b7791f; --silver:#64748b; --bronze:#9c4221;
+    --rbc:#dc2626; --wbc:#2563eb; --plt:#ca8a04;
+    --radius:14px; --shadow:0 1px 2px rgba(16,24,40,.06),0 8px 24px rgba(16,24,40,.06);
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#0e1116; --surface:#161b22; --surface2:#1c232d; --text:#e6e9ef; --muted:#9aa4b2;
+      --line:#2a323d; --accent:#ff5470; --accent-soft:#3a1820; --ok:#3fb978; --err:#ff6b6b;
+      --gold:#f6c453; --silver:#cbd5e1; --bronze:#f4a261; --shadow:0 1px 2px rgba(0,0,0,.4);
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#0e1116; --surface:#161b22; --surface2:#1c232d; --text:#e6e9ef; --muted:#9aa4b2;
+    --line:#2a323d; --accent:#ff5470; --accent-soft:#3a1820; --ok:#3fb978; --err:#ff6b6b;
+    --gold:#f6c453; --silver:#cbd5e1; --bronze:#f4a261; --shadow:0 1px 2px rgba(0,0,0,.4);
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--bg);color:var(--text);font:15px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif}
+  a{color:var(--accent)}
+  code,.mono{font-family:var(--mono);font-size:.9em}
+  code{background:var(--surface2);border:1px solid var(--line);border-radius:6px;padding:1px 6px}
+  pre{background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;overflow-x:auto;font-family:var(--mono);font-size:13px;line-height:1.5;margin:10px 0}
+  pre code{background:none;border:0;padding:0}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 16px}
+
+  header.hero{background:var(--surface);border-bottom:1px solid var(--line)}
+  .hero .wrap{display:grid;grid-template-columns:1fr 300px;gap:28px;align-items:center;padding-top:32px;padding-bottom:24px}
+  .eyebrow{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--accent);font-weight:700}
+  h1{font-size:34px;line-height:1.15;margin:6px 0 10px;letter-spacing:-.02em}
+  .lede{color:var(--muted);margin:0 0 16px;max-width:60ch}
+  .facts{display:flex;flex-wrap:wrap;gap:8px}
+  .fact{background:var(--surface2);border:1px solid var(--line);border-radius:999px;padding:4px 12px;font-size:13px;color:var(--muted)}
+  .fact b{color:var(--text);font-weight:600}
+  .hero img{width:100%;border-radius:12px;border:1px solid var(--line);display:block}
+  .legend{display:flex;gap:12px;font-size:12px;color:var(--muted);margin-top:8px;justify-content:center}
+  .sw{display:inline-block;width:10px;height:10px;border:2px solid;border-radius:2px;margin-right:5px;vertical-align:-1px}
+  .theme-btn{position:absolute;top:12px;right:16px;background:var(--surface2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:4px 10px;cursor:pointer;font-size:13px}
+
+  nav.tabs{position:sticky;top:0;z-index:5;background:var(--surface);border-bottom:1px solid var(--line)}
+  nav.tabs .wrap{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none}
+  nav.tabs a{padding:12px 14px;text-decoration:none;color:var(--muted);font-weight:600;font-size:14px;border-bottom:2px solid transparent;white-space:nowrap}
+  nav.tabs a[aria-current="page"]{color:var(--text);border-bottom-color:var(--accent)}
+  nav.tabs a:hover{color:var(--text)}
+
+  main{padding:24px 0 60px}
+  section.panel{display:none}
+  section.panel.active{display:block}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px 22px;margin-bottom:16px}
+  h2{font-size:20px;margin:0 0 10px;letter-spacing:-.01em}
+  h3{font-size:16px;margin:18px 0 6px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .muted{color:var(--muted)}
+  table.simple{width:100%;border-collapse:collapse;font-size:14px}
+  table.simple th,table.simple td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  table.simple th{color:var(--muted);font-weight:600;font-size:13px}
+  .num{text-align:right;font-variant-numeric:tabular-nums}
+  ol.steps{padding-left:20px;margin:0}
+  ol.steps li{margin:0 0 14px}
+
+  /* leaderboard */
+  .lb-head{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-bottom:12px}
+  .controls{display:flex;flex-wrap:wrap;gap:8px}
+  .controls input,.controls select,.btn{background:var(--surface2);border:1px solid var(--line);color:var(--text);border-radius:8px;padding:7px 10px;font:inherit;font-size:14px}
+  .controls input{width:180px;max-width:100%}
+  .btn{cursor:pointer}
+  .stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin-bottom:14px}
+  .stat{background:var(--surface2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-width:0}
+  .stat .l{font-size:12px;color:var(--muted)}
+  .stat .v{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px}
+  table.lb{width:100%;border-collapse:collapse;font-size:14px;min-width:760px}
+  table.lb th{position:sticky;top:0;background:var(--surface2);color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.04em;text-align:left;padding:10px;border-bottom:1px solid var(--line);cursor:pointer;user-select:none;white-space:nowrap}
+  table.lb td{padding:10px;border-bottom:1px solid var(--line);vertical-align:middle}
+  table.lb tr:last-child td{border-bottom:0}
+  table.lb tbody tr:hover{background:var(--surface2)}
+  .rank{display:inline-grid;place-items:center;min-width:28px;height:28px;border-radius:8px;font-weight:700;background:var(--surface2);border:1px solid var(--line)}
+  .r1{color:var(--gold);border-color:var(--gold)} .r2{color:var(--silver);border-color:var(--silver)} .r3{color:var(--bronze);border-color:var(--bronze)}
+  .team{font-weight:600}
+  .sub{font-size:12px;color:var(--muted)}
+  .tag{display:inline-block;font-size:12px;padding:1px 8px;border-radius:999px;border:1px solid var(--line);background:var(--surface2)}
+  .tag.llm{color:#7c3aed;border-color:#7c3aed55}.tag.hybrid{color:#0e7490;border-color:#0e749055}
+  .score{font-weight:700}
+  .notes{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted);font-size:13px}
+  .status{padding:14px;color:var(--muted);font-size:14px}
+  .status.err{color:var(--err)}
+
+  footer{color:var(--muted);font-size:13px;border-top:1px solid var(--line);padding:20px 0 40px}
+
+  @media (max-width:820px){
+    .hero .wrap{grid-template-columns:1fr}
+    .hero figure{max-width:420px}
+    .grid2{grid-template-columns:1fr}
+    .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+    h1{font-size:28px}
+  }
+</style>
+</head>
+<body>
+<header class="hero" style="position:relative">
+  <button class="theme-btn" id="themeBtn" aria-label="Toggle theme">◐</button>
+  <div class="wrap">
+    <div>
+      <div class="eyebrow">Mini competition · Object detection</div>
+      <h1>BCCD Blood Cell Detection Challenge</h1>
+      <p class="lede">Find every red blood cell, white blood cell and platelet in 640×480 blood-smear microscope images.
+        Train locally, submit encrypted predictions with a Pull Request, and get scored automatically against a hidden test set.</p>
+      <div class="facts">
+        <span class="fact">Metric <b>mAP@0.5</b></span>
+        <span class="fact">Classes <b>RBC · WBC · Platelets</b></span>
+        <span class="fact">Images <b>205 train · 87 val · 72 test</b></span>
+        <span class="fact">Images <b>noisy</b></span>
+        <span class="fact">Submissions <b>1 per team</b></span>
+      </div>
+    </div>
+    <figure style="margin:0">
+      <img src="assets/example.jpg" alt="Training image with ground-truth boxes: red blood cells in red, a white blood cell in blue, a platelet in yellow" width="640" height="480" />
+      <div class="legend">
+        <span><span class="sw" style="border-color:var(--rbc)"></span>RBC</span>
+        <span><span class="sw" style="border-color:var(--wbc)"></span>WBC</span>
+        <span><span class="sw" style="border-color:var(--plt)"></span>Platelets</span>
+      </div>
+    </figure>
+  </div>
+</header>
+
+<nav class="tabs" aria-label="Sections">
+  <div class="wrap">
+    <a href="#overview">Overview</a>
+    <a href="#data">Data</a>
+    <a href="#evaluation">Evaluation</a>
+    <a href="#leaderboard">Leaderboard</a>
+    <a href="#submit">Submit</a>
+    <a href="#rules">Rules</a>
+  </div>
+</nav>
+
+<main class="wrap">
+
+<section class="panel" id="overview">
+  <div class="card">
+    <h2>Overview</h2>
+    <p>Complete blood counts are one of the most common lab tests. Automating the detection of blood cells in microscope
+      images is a classic computer-vision problem: <b>red blood cells</b> are numerous and overlap heavily,
+      <b>white blood cells</b> are large but rare (usually one per image), and <b>platelets</b> are tiny and easy to miss.</p>
+    <p>Your task is <b>object detection</b>: for every test image, output bounding boxes with a class label and a confidence score.
+      Any approach is allowed (Faster R-CNN, YOLO, DETR, classical CV…), as long as you train only on the provided data.</p>
+    <p class="muted">This is a prediction-only competition. You never upload code. You upload an <b>encrypted</b> predictions file,
+      and a GitHub Action decrypts and scores it against labels that are stored only in repository secrets.</p>
+  </div>
+  <div class="grid2">
+    <div class="card">
+      <h3 style="margin-top:0">How it works</h3>
+      <ol class="steps">
+        <li>Train on <code>train</code> and tune on <code>val</code>, both labelled.</li>
+        <li>Predict boxes for the 72 unlabelled <code>test</code> images.</li>
+        <li>Encrypt with the repo's public key and open a PR.</li>
+        <li>The bot scores it, updates the leaderboard, comments your score and closes the PR.</li>
+      </ol>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">Starting points</h3>
+      <ul style="padding-left:18px;margin:0">
+        <li><code>starter/baseline_fasterrcnn.py</code>: torchvision Faster R-CNN that trains and writes a valid submission</li>
+        <li><code>scoring/score_submission.py --split val</code>: the official metric, run locally on validation</li>
+        <li><code>scoring/validate_submission.py</code>: checks the format before you encrypt</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<section class="panel" id="data">
+  <div class="card">
+    <h2>Data</h2>
+    <p>From the <a href="https://github.com/Shenggan/BCCD_Dataset">BCCD dataset</a> (MIT licence), using its official train/val/test split.
+      Images were renamed to opaque ids (<code>bccd_XXXX</code>) and re-encoded.</p>
+<pre><code>data/public/
+├── train/images/*.jpg          205 images
+├── val/images/*.jpg             87 images
+├── test/images/*.jpg            72 images (labels hidden)
+├── train_annotations.csv       image_id,label,xmin,ymin,xmax,ymax
+├── val_annotations.csv         image_id,label,xmin,ymin,xmax,ymax
+├── {train,val,test}_images.csv image_id,width,height
+└── sample_submission.csv</code></pre>
+    <h3>Box counts</h3>
+    <div class="tablewrap" style="border:0">
+    <table class="simple">
+      <thead><tr><th>Split</th><th class="num">Images</th><th class="num">RBC</th><th class="num">WBC</th><th class="num">Platelets</th></tr></thead>
+      <tbody>
+        <tr><td>train</td><td class="num">205</td><td class="num">2,381</td><td class="num">214</td><td class="num">209</td></tr>
+        <tr><td>val</td><td class="num">87</td><td class="num">967</td><td class="num">87</td><td class="num">83</td></tr>
+        <tr><td>test</td><td class="num">72</td><td class="num">hidden</td><td class="num">hidden</td><td class="num">hidden</td></tr>
+      </tbody>
+    </table>
+    </div>
+    <h3>Image noise</h3>
+    <p>About 90% of images in <b>every split</b> carry 1–2 random corruptions: Gaussian noise, salt &amp; pepper dots
+      (easy to mistake for platelets), blur, heavy JPEG compression, or colour/brightness/contrast jitter.
+      Only pixels changed, never geometry, so every box is still exact. Denoising, augmentation and robust training are all fair game.</p>
+    <p class="muted" style="margin-bottom:0">Coordinates are in pixels with the origin at the top-left corner; <code>xmax</code>/<code>ymax</code> are exclusive edges.
+      Note that the original BCCD annotations are known to be incomplete, with some RBCs left unlabelled. Treat the labels as noisy.</p>
+  </div>
+</section>
+
+<section class="panel" id="evaluation">
+  <div class="card">
+    <h2>Evaluation: mAP@0.5</h2>
+    <p>For each class, all your boxes across the test set are sorted by <code>score</code>. A box is a <b>true positive</b> if its IoU with a
+      not-yet-matched ground-truth box of the same class in the same image is ≥ 0.5; otherwise it is a false positive.
+      <b>AP</b> is the area under the precision–recall curve (all-point interpolation, PASCAL VOC style).</p>
+    <p><b>mAP@0.5</b> is the unweighted mean of AP over <b>RBC</b>, <b>WBC</b> and <b>Platelets</b>, so the rare classes count as much as RBCs.
+      Ties on the leaderboard share a rank; ordering within a tie is by earliest submission.</p>
+    <h3>Submission format</h3>
+<pre><code>image_id,label,score,xmin,ymin,xmax,ymax
+bccd_0002,RBC,0.97,412,88,515,190
+bccd_0002,WBC,0.99,201,150,330,281
+bccd_0002,Platelets,0.64,55,402,82,431</code></pre>
+    <ul style="padding-left:18px">
+      <li>One row per predicted box. <code>image_id</code> must be one of <code>test_images.csv</code>.</li>
+      <li><code>label</code> ∈ {RBC, WBC, Platelets}; <code>score</code> ∈ [0, 1]; <code>xmax &gt; xmin</code>, <code>ymax &gt; ymin</code>.</li>
+      <li>Up to 300 boxes per image. Boxes are clipped to the image.</li>
+    </ul>
+  </div>
+</section>
+
+<section class="panel" id="leaderboard">
+  <div class="card">
+    <div class="lb-head">
+      <h2 style="margin:0">Leaderboard</h2>
+      <div class="controls">
+        <input id="fSearch" type="search" placeholder="Search team, model, notes…" aria-label="Search" />
+        <select id="fAuthor" aria-label="Author type">
+          <option value="">All authors</option><option value="human">human</option><option value="llm">llm</option><option value="hybrid">hybrid</option>
+        </select>
+        <button class="btn" id="btnReload">↻ Reload</button>
+      </div>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="l">Teams</div><div class="v" id="sTeams">—</div></div>
+      <div class="stat"><div class="l">Best mAP@0.5</div><div class="v" id="sBest">—</div></div>
+      <div class="stat"><div class="l">Leader</div><div class="v" id="sLeader">—</div></div>
+      <div class="stat"><div class="l">Latest submission</div><div class="v" id="sLast" style="font-size:15px;padding-top:4px">—</div></div>
+    </div>
+    <div class="tablewrap">
+      <table class="lb" id="tbl">
+        <thead><tr>
+          <th data-k="rank" class="num">#</th>
+          <th data-k="team">Team</th>
+          <th data-k="author_type">Author</th>
+          <th data-k="model">Model</th>
+          <th data-k="map50" class="num">mAP@0.5 ▾</th>
+          <th data-k="ap_RBC" class="num">RBC</th>
+          <th data-k="ap_WBC" class="num">WBC</th>
+          <th data-k="ap_Platelets" class="num">Platelets</th>
+          <th data-k="submitted_at">Submitted</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <div class="status" id="status">Loading…</div>
+    </div>
+    <p class="sub" style="margin:10px 0 0">Source: <code>leaderboard/leaderboard.csv</code>, updated automatically by the scoring bot. Click a column to sort.</p>
+  </div>
+</section>
+
+<section class="panel" id="submit">
+  <div class="card">
+    <h2>Submit</h2>
+    <ol class="steps">
+      <li><b>Fork</b> the repository and clone your fork.</li>
+      <li><b>Predict</b> the test set and save <code>predictions.csv</code> in the format above, then check it:
+<pre><code>python scoring/validate_submission.py predictions.csv</code></pre></li>
+      <li><b>Encrypt</b> it with the repository's public key:
+<pre><code>pip install cryptography pandas numpy
+python encryption/encrypt.py predictions.csv encryption/public_key.pem predictions.csv.enc</code></pre></li>
+      <li><b>Add exactly two files</b> in a new folder (team and run id: letters, digits, <code>_ - .</code>):
+<pre><code>submissions/inbox/&lt;team&gt;/&lt;run_id&gt;/predictions.csv.enc
+submissions/inbox/&lt;team&gt;/&lt;run_id&gt;/metadata.json</code></pre>
+<pre><code>{
+  "team": "my_team",
+  "run_id": "frcnn_v1",
+  "author_type": "human",
+  "model": "Faster R-CNN R50-FPN",
+  "notes": "640px, hflip+vflip aug, 30 epochs"
+}</code></pre>
+        <span class="muted"><code>author_type</code> is one of <code>human</code>, <code>llm</code>, <code>hybrid</code>. <code>team</code>/<code>run_id</code> must match the folder names.</span></li>
+      <li><b>Open a Pull Request</b> to <code>main</code>. Within a couple of minutes the bot comments your score and rank and closes the PR.
+        If something is wrong it comments the reason; push a fix to the same PR to re-run.</li>
+    </ol>
+    <p class="muted" style="margin:0">Never commit the plain <code>predictions.csv</code>. Only the encrypted file is accepted.</p>
+  </div>
+</section>
+
+<section class="panel" id="rules">
+  <div class="card">
+    <h2>Rules</h2>
+    <ul style="padding-left:18px;margin:0">
+      <li><b>One scored submission per team and per GitHub account.</b> Validate on <code>val</code> first.</li>
+      <li><b>No external labelled blood-cell data</b>, and in particular no use of the original BCCD annotations or images to identify test labels.
+        ImageNet/COCO pretrained backbones are allowed; say so in <code>notes</code>.</li>
+      <li>No hand-labelling of test images.</li>
+      <li>Report honestly whether the solution was written by a human, an LLM, or both (<code>author_type</code>).</li>
+      <li>Organizers may remove entries that break the rules.</li>
+    </ul>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    Data: <a href="https://github.com/Shenggan/BCCD_Dataset">BCCD Dataset</a> (MIT licence). Scoring runs in GitHub Actions; test labels and the decryption key exist only as repository secrets.
+    <span id="repoLink"></span>
+  </div>
+</footer>
+
+<script>
+(() => {
+  // ---------- theme ----------
+  const root = document.documentElement;
+  try { const t = localStorage.getItem("theme"); if (t) root.dataset.theme = t; } catch (e) {}
+  document.getElementById("themeBtn").addEventListener("click", () => {
+    const dark = root.dataset.theme ? root.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+    root.dataset.theme = dark ? "light" : "dark";
+    try { localStorage.setItem("theme", root.dataset.theme); } catch (e) {}
+  });
+
+  // ---------- repo link (when served from <owner>.github.io/<repo>/) ----------
+  const m = location.hostname.match(/^([^.]+)\.github\.io$/);
+  const repo = location.pathname.split("/").filter(Boolean)[0];
+  if (m && repo) {
+    const url = `https://github.com/${m[1]}/${repo}`;
+    document.getElementById("repoLink").innerHTML = ` · <a href="${url}">Repository</a>`;
+  }
+
+  // ---------- tabs ----------
+  const panels = [...document.querySelectorAll("section.panel")];
+  const links = [...document.querySelectorAll("nav.tabs a")];
+  function show() {
+    const id = (location.hash || "#overview").slice(1);
+    const target = panels.find(p => p.id === id) ? id : "overview";
+    panels.forEach(p => p.classList.toggle("active", p.id === target));
+    links.forEach(a => {
+      if (a.getAttribute("href") === "#" + target) a.setAttribute("aria-current", "page");
+      else a.removeAttribute("aria-current");
+    });
+  }
+  addEventListener("hashchange", show);
+  show();
+
+  // ---------- leaderboard ----------
+  const tbody = document.getElementById("tbody");
+  const status = document.getElementById("status");
+  const fSearch = document.getElementById("fSearch");
+  const fAuthor = document.getElementById("fAuthor");
+  let rows = [], sortKey = "map50", sortDesc = true;
+
+  // RFC 4180 CSV parser (handles quoted fields with commas, quotes and newlines)
+  function parseCSV(text) {
+    const out = []; let row = [], field = "", q = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (q) {
+        if (c === '"') { if (text[i + 1] === '"') { field += '"'; i++; } else q = false; }
+        else field += c;
+      } else if (c === '"') q = true;
+      else if (c === ",") { row.push(field); field = ""; }
+      else if (c === "\n" || c === "\r") {
+        if (c === "\r" && text[i + 1] === "\n") i++;
+        row.push(field); field = ""; if (row.some(v => v !== "")) out.push(row); row = [];
+      } else field += c;
+    }
+    row.push(field); if (row.some(v => v !== "")) out.push(row);
+    if (!out.length) return [];
+    const head = out[0];
+    return out.slice(1).map(r => Object.fromEntries(head.map((h, i) => [h, r[i] ?? ""])));
+  }
+  const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const fmt = x => Number.isFinite(x) ? x.toFixed(4) : "—";
+  const NUM = ["map50", "ap_RBC", "ap_WBC", "ap_Platelets"];
+
+  function withRanks(list) {
+    const s = [...list].sort((a, b) => (b.map50 - a.map50) || a.submitted_at.localeCompare(b.submitted_at));
+    let last = null, rank = 0;
+    s.forEach((r, i) => { const v = Math.round(r.map50 * 1e6); if (v !== last) { rank = i + 1; last = v; } r.rank = rank; });
+    return s;
+  }
+
+  function render() {
+    const q = fSearch.value.trim().toLowerCase();
+    const a = fAuthor.value;
+    let view = rows.filter(r => (!a || r.author_type === a) &&
+      (!q || [r.team, r.run_id, r.model, r.notes, r.github_user].join(" ").toLowerCase().includes(q)));
+    view.sort((x, y) => {
+      const vx = x[sortKey], vy = y[sortKey];
+      const c = typeof vx === "number" ? (vx - vy) : String(vx).localeCompare(String(vy));
+      return (sortDesc ? -c : c) || (x.rank - y.rank);
+    });
+
+    const best = rows.length ? rows.reduce((m, r) => r.map50 > m.map50 ? r : m) : null;
+    document.getElementById("sTeams").textContent = rows.length;
+    document.getElementById("sBest").textContent = best ? fmt(best.map50) : "—";
+    document.getElementById("sLeader").textContent = best ? best.team : "—";
+    const latest = rows.map(r => r.submitted_at).sort().pop();
+    document.getElementById("sLast").textContent = latest ? latest.replace(" UTC", "") : "—";
+
+    tbody.innerHTML = view.map(r => `
+      <tr>
+        <td class="num"><span class="rank ${r.rank <= 3 ? "r" + r.rank : ""}">${r.rank}</span></td>
+        <td><div class="team">${esc(r.team)}</div><div class="sub">${esc(r.run_id)}${r.github_user ? " · @" + esc(r.github_user) : ""}</div></td>
+        <td><span class="tag ${esc(r.author_type)}">${esc(r.author_type)}</span></td>
+        <td><div>${esc(r.model)}</div>${r.notes ? `<div class="notes" title="${esc(r.notes)}">${esc(r.notes)}</div>` : ""}</td>
+        <td class="num score">${fmt(r.map50)}</td>
+        <td class="num">${fmt(r.ap_RBC)}</td>
+        <td class="num">${fmt(r.ap_WBC)}</td>
+        <td class="num">${fmt(r.ap_Platelets)}</td>
+        <td class="sub" style="white-space:nowrap">${esc(r.submitted_at.replace(" UTC", ""))}</td>
+      </tr>`).join("");
+
+    status.className = "status";
+    status.style.display = view.length ? "none" : "";
+    status.textContent = rows.length ? "No entries match the filters." : "No submissions yet. Be the first!";
+  }
+
+  async function load() {
+    status.style.display = ""; status.className = "status"; status.textContent = "Loading…";
+    try {
+      const res = await fetch("leaderboard.csv", { cache: "no-store" });
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      rows = withRanks(parseCSV(await res.text())
+        .filter(r => r.team && r.map50 !== "")
+        .map(r => { NUM.forEach(k => r[k] = Number(r[k])); r.submitted_at ||= ""; return r; })
+        .filter(r => Number.isFinite(r.map50)));
+      render();
+    } catch (e) {
+      tbody.innerHTML = "";
+      status.className = "status err";
+      status.textContent = `Could not load leaderboard.csv (${e.message}). Open this page through GitHub Pages or a local server, not file://.`;
+    }
+  }
+
+  document.querySelectorAll("table.lb th").forEach(th => th.addEventListener("click", () => {
+    const k = th.dataset.k;
+    if (sortKey === k) sortDesc = !sortDesc; else { sortKey = k; sortDesc = NUM.includes(k) || k === "submitted_at"; }
+    document.querySelectorAll("table.lb th").forEach(h => h.textContent = h.textContent.replace(/ [▾▴]$/, ""));
+    th.textContent += sortDesc ? " ▾" : " ▴";
+    render();
+  }));
+  fSearch.addEventListener("input", render);
+  fAuthor.addEventListener("change", render);
+  document.getElementById("btnReload").addEventListener("click", load);
+  load();
+})();
+</script>
+</body>
+</html>

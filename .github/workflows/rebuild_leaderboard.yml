@@ -1,0 +1,69 @@
+name: Rebuild Leaderboard (manual)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: leaderboard-update
+  cancel-in-progress: false
+
+jobs:
+  rebuild:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - run: python -m pip install --quiet pandas numpy cryptography
+
+      - name: Restore hidden test labels and private key (secrets)
+        shell: bash
+        env:
+          L1: ${{ secrets.TEST_LABELS_B64_01 }}
+          L2: ${{ secrets.TEST_LABELS_B64_02 }}
+          L3: ${{ secrets.TEST_LABELS_B64_03 }}
+          L4: ${{ secrets.TEST_LABELS_B64_04 }}
+          L5: ${{ secrets.TEST_LABELS_B64_05 }}
+          L6: ${{ secrets.TEST_LABELS_B64_06 }}
+          L7: ${{ secrets.TEST_LABELS_B64_07 }}
+          L8: ${{ secrets.TEST_LABELS_B64_08 }}
+          K1: ${{ secrets.SUBMISSION_PRIVATE_KEY_B64_01 }}
+          K2: ${{ secrets.SUBMISSION_PRIVATE_KEY_B64_02 }}
+          K3: ${{ secrets.SUBMISSION_PRIVATE_KEY_B64_03 }}
+          K4: ${{ secrets.SUBMISSION_PRIVATE_KEY_B64_04 }}
+          K5: ${{ secrets.SUBMISSION_PRIVATE_KEY_B64_05 }}
+          K6: ${{ secrets.SUBMISSION_PRIVATE_KEY_B64_06 }}
+          K7: ${{ secrets.SUBMISSION_PRIVATE_KEY_B64_07 }}
+          K8: ${{ secrets.SUBMISSION_PRIVATE_KEY_B64_08 }}
+        run: |
+          set -euo pipefail
+          mkdir -p data/private
+          printf "%s" "$L1$L2$L3$L4$L5$L6$L7$L8" | base64 -d > data/private/test_labels.csv
+          printf "%s" "$K1$K2$K3$K4$K5$K6$K7$K8" | base64 -d > data/private/submission_private_key.pem
+          test -s data/private/test_labels.csv
+          test -s data/private/submission_private_key.pem
+
+      - name: Rebuild leaderboard from archived submissions
+        run: python scoring/rebuild_leaderboard.py
+
+      - name: Remove private files
+        if: always()
+        run: rm -rf data/private
+
+      - name: Commit rebuilt leaderboard
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add leaderboard/ docs/leaderboard.csv
+          if git diff --cached --quiet; then echo "No changes"; exit 0; fi
+          git commit -m "Rebuild leaderboard"
+          git push origin main
