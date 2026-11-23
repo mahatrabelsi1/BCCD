@@ -1,0 +1,7 @@
+{
+  "team": "organizer_test",
+  "run_id": "run_01",
+  "author_type": "human",
+  "model": "sample_submission (pipeline test)",
+  "notes": "Organizer sanity check of the scoring bot, not a real model. Fixed dummy boxes, so a near-zero score is expected."
+}
